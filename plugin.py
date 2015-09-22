@@ -122,6 +122,37 @@ class MenuNavigator():
         m4bHandle = M4BHandler(fullpath)
         chapters = m4bHandle.getChapterDetails()
 
+        if len(chapters) < 1:
+            url = self._build_url({'mode': 'play', 'filename': fullpath, 'startTime': 0})
+
+            li = xbmcgui.ListItem(__addon__.getLocalizedString(32018), iconImage=defaultImage)
+            li.setProperty("Fanart_Image", __fanart__)
+            li.addContextMenuItems(self._getContextMenu(fullpath), replaceItems=True)
+            xbmcplugin.addDirectoryItem(handle=self.addon_handle, url=url, listitem=li, isFolder=False)
+
+        secondsIn = m4bHandle.getPosition()
+        if secondsIn > 0:
+            url = self._build_url({'mode': 'play', 'filename': fullpath, 'startTime': secondsIn})
+
+            # Get the resume time as a display string
+            seconds = secondsIn % 60
+            minutes = 0
+            hours = 0
+
+            if secondsIn > 60:
+                minutes = ((secondsIn - seconds) % 3600) / 60
+
+            if secondsIn > 3600:
+                hours = (secondsIn - (minutes * 60) - seconds) / 3600
+
+            # Build the string up
+            displayName = "%s %d:%02d:%02d" % (__addon__.getLocalizedString(32019), hours, minutes, seconds)
+
+            li = xbmcgui.ListItem(displayName, iconImage=defaultImage)
+            li.setProperty("Fanart_Image", __fanart__)
+            li.addContextMenuItems(self._getContextMenu(fullpath), replaceItems=True)
+            xbmcplugin.addDirectoryItem(handle=self.addon_handle, url=url, listitem=li, isFolder=False)
+
         # Add all the chapters to the display
         for chapter in chapters:
             url = self._build_url({'mode': 'play', 'filename': fullpath, 'startTime': chapter['startTime']})
@@ -145,6 +176,9 @@ class MenuNavigator():
         bookPlayer = BookPlayer()
         bookPlayer.playAudioBook(m4bHandle, startTime)
         del bookPlayer
+
+        # After playing we need to update the screen to refrlect our progress
+        xbmc.executebuiltin("Container.Refresh")
 
     # Construct the context menu
     def _getContextMenu(self, filepath, chapterLink="", previousChapterLink="", isLastChapter='false'):

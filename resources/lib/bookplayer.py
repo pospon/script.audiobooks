@@ -86,7 +86,6 @@ class BookPlayer(xbmc.Player):
         if startTime < 0:
             startPoint = audioBookHandler.getPosition()
         if startPoint > 0:
-            log("*** Rob ***: Setting offset to: %s" % str(startPoint))
             listitem.setProperty('StartOffset', str(startPoint))
 
         return listitem

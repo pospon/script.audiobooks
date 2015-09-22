@@ -73,7 +73,7 @@ msgid "Clear AudioBook Details Cache"
 msgstr ""
 
 msgctxt "#32013"
-msgid "Clear Book AudioDetails Cache Complete"
+msgid "Clear AudioBook Details Cache Complete"
 msgstr ""
 
 msgctxt "#32014"
@@ -90,4 +90,12 @@ msgstr ""
 
 msgctxt "#32017"
 msgid "Chapter"
+msgstr ""
+
+msgctxt "#32018"
+msgid "Play From Start"
+msgstr ""
+
+msgctxt "#32019"
+msgid "Resume From"
 msgstr ""
