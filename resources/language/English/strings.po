@@ -87,3 +87,7 @@ msgstr ""
 msgctxt "#32016"
 msgid "ffprobe Location"
 msgstr ""
+
+msgctxt "#32017"
+msgid "Chapter"
+msgstr ""

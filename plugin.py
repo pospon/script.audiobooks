@@ -3,7 +3,6 @@ import sys
 import os
 import urllib
 import urlparse
-import traceback
 import xbmc
 import xbmcgui
 import xbmcplugin
@@ -100,6 +99,7 @@ class MenuNavigator():
             m4bHandle.loadBasicDetails()
             title = m4bHandle.getTitle()
             coverTargetName = m4bHandle.getCoverImage()
+            del m4bHandle
 
             isRead = False
 
@@ -117,160 +117,26 @@ class MenuNavigator():
 
         xbmcplugin.endOfDirectory(self.addon_handle)
 
-#     def listChapters(self, fullpath, defaultImage):
-#         log("AudioBooksPlugin: Listing chapters for %s" % fullpath)
-# 
-#         # Get the current chapter that has been read from the database
-#         readChapter = None
-#         readAll = False
-#         bookDB = EbooksDB()
-#         bookDetails = bookDB.getBookDetails(fullpath)
-#         del bookDB
-# 
-#         if bookDetails is not None:
-#             readChapter = bookDetails['readchapter']
-#             readAll = bookDetails['complete']
-# 
-#         # Get the chapters for this book
-#         chapters = self._getChapters(fullpath)
-# 
-#         foundMatchedReadChapter = False
-#         # Add all the chapters to the display
-#         for chapter in chapters:
-#             url = self._build_url({'mode': 'readChapter', 'filename': chapter['filename'], 'title': chapter['title'], 'link': chapter['link'], 'firstChapter': chapter['firstChapter'], 'lastChapter': chapter['lastChapter']})
-# 
-#             # Check if we have already reached this chapter, if so, and the new chapter does not
-#             # point to the same chapter, then we no-longer mark as read
-#             if foundMatchedReadChapter:
-#                 if readChapter != chapter['link']:
-#                     readChapter = None
-# 
-#             readFlag = ''
-#             # Check if this chapter has been read
-#             if readAll or (readChapter not in [None, ""]):
-#                 log("EBooksPlugin: Setting chapter as read %s" % chapter['link'])
-#                 readFlag = '* '  # Wanted to use a tick, but it didn't work - u'\u2713'
-#                 # The following will only work it the plug-in is for videos, which in our
-#                 # case it is not (So instead to prepend a character to indicate it has been read
-#                 # li.setInfo('video', {'PlayCount': 1})
-#             displaytitle = "%s%s" % (readFlag, chapter['title'])
-# 
-#             # Check if this is the last chapter read, as we do not want to flag any more
-#             # as read if this is as far as we got
-#             if readChapter == chapter['link']:
-#                 foundMatchedReadChapter = True
-# 
-#             li = xbmcgui.ListItem(displaytitle, iconImage=defaultImage)
-#             li.setProperty("Fanart_Image", __fanart__)
-#             li.addContextMenuItems(self._getContextMenu(fullpath, chapter['link'], chapter['previousLink'], chapter['lastChapter']), replaceItems=True)
-#             xbmcplugin.addDirectoryItem(handle=self.addon_handle, url=url, listitem=li, isFolder=False)
-# 
-#         xbmcplugin.endOfDirectory(self.addon_handle)
-# 
-#     def readChapter(self, fullpath, chapterTitle, chapterLink, isFirstChapter, isLastChapter):
-#         log("EBooksPlugin: Showing chapter %s" % chapterLink)
-# 
-#         # It could take a little while to get the part of the book required so show the busy dialog
-#         xbmc.executebuiltin("ActivateWindow(busydialog)")
-# 
-#         # Get the content of the chapter
-#         eBook = EBookBase.createEBookObject(fullpath, "")
-#         chapterContent = eBook.getChapterContents(chapterLink)
-# 
-#         xbmc.executebuiltin("Dialog.Close(busydialog)")
-# 
-#         readerWindow = TextViewer.createTextViewer(chapterTitle, chapterContent, isFirstChapter, isLastChapter)
-#         # Display the window
-#         readerWindow.show()
-# 
-#         readStatusChanged = False
-#         readingChapter = chapterLink
-#         isShowingLastChapter = isLastChapter
-#         # Now wait until the text is finished with and the viewer is closed
-#         while (not readerWindow.isClosed()) and (not xbmc.abortRequested):
-#             xbmc.sleep(100)
-# 
-#             # Now that the chapter has been read, update the database record
-#             if readerWindow.isRead():
-#                 readStatusChanged = True
-#                 bookDB = EbooksDB()
-#                 bookDB.setReadChapter(fullpath, readingChapter, isShowingLastChapter)
-#                 del bookDB
-# 
-#             # Check if this chapter is read and a new chapter is to be started
-#             if readerWindow.isNext():
-#                 xbmc.executebuiltin("ActivateWindow(busydialog)")
-#                 # Find the next chapter
-#                 chapters = self._getChapters(fullpath)
-#                 nextChapterMatch = False
-#                 for chapter in chapters:
-#                     # Check if this is the chapter we are moving to
-#                     if nextChapterMatch:
-#                         isShowingLastChapter = False
-#                         if chapter['lastChapter'] == 'true':
-#                             isShowingLastChapter = True
-#                         readingChapter = chapter['link']
-#                         readerWindow.updateScreen(chapter['title'], eBook.getChapterContents(readingChapter), False, isShowingLastChapter)
-#                         break
-#                     if chapter['link'] == readingChapter:
-#                         nextChapterMatch = True
-#                 xbmc.executebuiltin("Dialog.Close(busydialog)")
-# 
-#             if readerWindow.isPrevious():
-#                 xbmc.executebuiltin("ActivateWindow(busydialog)")
-#                 # Find the previous chapter
-#                 chapters = self._getChapters(fullpath)
-#                 previousChapter = None
-#                 isFirstChapterVal = 'true'
-#                 for chapter in chapters:
-#                     if chapter['link'] == readingChapter:
-#                         break
-#                     previousChapter = chapter['link']
-#                     isFirstChapterVal = chapter['firstChapter']
-#                 # Check if this is the chapter we are moving to
-#                 if previousChapter not in [None, "", readingChapter]:
-#                     isShowingLastChapter = False
-#                     isFirstChapter = False
-#                     if isFirstChapterVal == 'true':
-#                         isFirstChapter = True
-#                     readingChapter = previousChapter
-#                     readerWindow.updateScreen(chapter['title'], eBook.getChapterContents(readingChapter), isFirstChapter, False)
-#                 xbmc.executebuiltin("Dialog.Close(busydialog)")
-# 
-#         # If this chapter was marked as read then we need to refresh to pick up the record
-#         if readStatusChanged:
-#             xbmc.executebuiltin("Container.Refresh")
-# 
-#         del readerWindow
-# 
-#     def _getChapters(self, fullpath):
-#         log("EBooksPlugin: Listing chapters for %s" % fullpath)
-#         # Get the chapters for this book
-#         eBook = EBookBase.createEBookObject(fullpath, "")
-#         chapters = eBook.getChapterDetails()
-# 
-#         chapterList = []
-# 
-#         previousChapterLink = ""
-#         # Add all the chapters to the display
-#         for chapter in chapters:
-#             # Checks if this is the last chapter of the book
-#             isLastChapter = 'false'
-#             if chapter == chapters[-1]:
-#                 log("EBooksPlugin: Last chapter is %s" % chapter['link'])
-#                 isLastChapter = 'true'
-#             isFirstChapter = 'false'
-#             if chapter == chapters[0]:
-#                 log("EBooksPlugin: First chapter is %s" % chapter['link'])
-#                 isFirstChapter = 'true'
-# 
-#             chapterItem = {'filename': fullpath, 'title': chapter['title'], 'link': chapter['link'], 'previousLink': previousChapterLink, 'firstChapter': isFirstChapter, 'lastChapter': isLastChapter}
-# 
-#             chapterList.append(chapterItem)
-#             # Set the previous link so it is available when we do the next loop iteration
-#             previousChapterLink = chapter['link']
-# 
-#         return chapterList
+    def listChapters(self, fullpath, defaultImage):
+        log("AudioBooksPlugin: Listing chapters for %s" % fullpath)
+
+        m4bHandle = M4BHandler(fullpath, "")
+        chapters = m4bHandle.getChapterDetails()
+
+        # Add all the chapters to the display
+        for chapter in chapters:
+            url = self._build_url({'mode': 'play', 'filename': fullpath, 'title': chapter['title']})
+
+            li = xbmcgui.ListItem(chapter['title'], iconImage=defaultImage)
+
+            if chapter['duration'] > 0:
+                li.setInfo('music', {'Duration': chapter['duration']})
+
+            li.setProperty("Fanart_Image", __fanart__)
+            li.addContextMenuItems(self._getContextMenu(fullpath), replaceItems=True)
+            xbmcplugin.addDirectoryItem(handle=self.addon_handle, url=url, listitem=li, isFolder=False)
+
+        xbmcplugin.endOfDirectory(self.addon_handle)
 
     # Construct the context menu
     def _getContextMenu(self, filepath, chapterLink="", previousChapterLink="", isLastChapter='false'):
@@ -281,11 +147,11 @@ class MenuNavigator():
 #         readFlag = isLastChapter
 #         if chapterLink in [None, ""]:
 #             readFlag = 'true'
-#  
+#
 #         # Mark as Read
 #         cmd = self._build_url({'mode': 'markReadStatus', 'filename': filepath, 'link': chapterLink, 'read': readFlag})
 #         ctxtMenu.append((__addon__.getLocalizedString(32011), 'RunPlugin(%s)' % cmd))
-#  
+#
 #         # Mark as Not Read
 #         # Note, marking a chapter as "Not Read" will result in the previous chapter being
 #         # marked as the last chapter that was read
@@ -301,7 +167,7 @@ class MenuNavigator():
 #         bookDB = EbooksDB()
 #         bookDB.setReadChapter(fullpath, chapterLink, markRead)
 #         del bookDB
-#  
+#
 #         xbmc.executebuiltin("Container.Refresh")
 
 
@@ -338,38 +204,38 @@ if __name__ == '__main__':
             menuNav.showAudiobooks(directory[0])
             del menuNav
 
-#     elif mode[0] == 'chapters':
-#         log("EBooksPlugin: Mode is CHAPTERS")
-# 
-#         # Get the actual folder that was navigated to
-#         filename = args.get('filename', None)
-#         cover = args.get('cover', None)
-# 
-#         if (cover is not None) and (len(cover) > 0):
-#             cover = cover[0]
-#         else:
-#             cover = None
-# 
-#         if (filename is not None) and (len(filename) > 0):
-#             menuNav = MenuNavigator(base_url, addon_handle)
-#             menuNav.listChapters(filename[0], cover)
-#             del menuNav
+    elif mode[0] == 'chapters':
+        log("AudioBooksPlugin: Mode is CHAPTERS")
+
+        # Get the actual folder that was navigated to
+        filename = args.get('filename', None)
+        cover = args.get('cover', None)
+
+        if (cover is not None) and (len(cover) > 0):
+            cover = cover[0]
+        else:
+            cover = None
+
+        if (filename is not None) and (len(filename) > 0):
+            menuNav = MenuNavigator(base_url, addon_handle)
+            menuNav.listChapters(filename[0], cover)
+            del menuNav
 
 #     elif mode[0] == 'readChapter':
 #         log("EBooksPlugin: Mode is READ CHAPTER")
-# 
+#
 #         # Get the actual chapter that was navigated to
 #         filename = args.get('filename', None)
 #         link = args.get('link', None)
 #         title = args.get('title', None)
 #         isFirstChapterVal = args.get('firstChapter', None)
 #         isLastChapterVal = args.get('lastChapter', None)
-# 
+#
 #         if (title is not None) and (len(title) > 0):
 #             title = title[0]
 #         else:
 #             title = ""
-# 
+#
 #         isFirstChapter = False
 #         if (isFirstChapterVal is not None) and (len(isFirstChapterVal) > 0):
 #             if isFirstChapterVal[0] == 'true':
@@ -378,29 +244,29 @@ if __name__ == '__main__':
 #         if (isLastChapterVal is not None) and (len(isLastChapterVal) > 0):
 #             if isLastChapterVal[0] == 'true':
 #                 isLastChapter = True
-# 
+#
 #         if (filename is not None) and (len(filename) > 0) and (link is not None) and (len(link) > 0):
 #             menuNav = MenuNavigator(base_url, addon_handle)
 #             menuNav.readChapter(filename[0], title, link[0], isFirstChapter, isLastChapter)
 #             del menuNav
-# 
+#
 #     elif mode[0] == 'markReadStatus':
 #         log("EBooksPlugin: Mode is MARK READ STATUS")
-# 
+#
 #         filename = args.get('filename', None)
 #         link = args.get('link', None)
 #         readStatus = args.get('read', None)
-# 
+#
 #         if (link is not None) and (len(link) > 0):
 #             link = link[0]
 #         else:
 #             link = ""
-# 
+#
 #         markRead = False
 #         if (readStatus is not None) and (len(readStatus) > 0):
 #             if readStatus[0] == 'true':
 #                 markRead = True
-# 
+#
 #         if (filename is not None) and (len(filename) > 0):
 #             menuNav = MenuNavigator(base_url, addon_handle)
 #             menuNav.markReadStatus(filename[0], link, markRead)
