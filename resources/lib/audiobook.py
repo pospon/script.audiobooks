@@ -17,22 +17,25 @@ __media__ = xbmc.translatePath(os.path.join(__resource__, 'media').encode("utf-8
 from settings import Settings
 from settings import log
 from settings import os_path_join
+from settings import os_path_split
 
 from database import AudioBooksDB
 
 
 # Generic class for handling m4b details
 class M4BHandler():
-    def __init__(self, audioBookFilePath, audioBookFileName):
+    def __init__(self, audioBookFilePath):
         self.filePath = audioBookFilePath
-        self.fileName = audioBookFileName
+        self.fileName = os_path_split(audioBookFilePath)[-1]
         self.coverImage = None
         self.title = None
         self.chapters = []
         self.numChapters = 0
+        self.position = -1
+        self.totalDuration = -1
 
     # Will load the basic details needed for simple listings
-    def loadBasicDetails(self):
+    def _loadBasicDetails(self):
         log("M4BHandler: Loading audio book %s (%s)" % (self.filePath, self.fileName))
 
         # Check to see if we already have an image available
@@ -45,7 +48,9 @@ class M4BHandler():
         if audiobookDetails not in [None, ""]:
             self.title = audiobookDetails['title']
             self.numChapters = audiobookDetails['numChapters']
+            self.position = audiobookDetails['position']
         else:
+            self.position = 0
             self._loadFFmpegDetails()
 
             if self.title in [None, ""]:
@@ -191,17 +196,37 @@ class M4BHandler():
             detail = {'title': chapterTitle, 'startTime': start_time, 'endTime': end_time, 'duration': duration}
             self.chapters.append(detail)
 
+            # The total Duration is always the end of the last chapter
+            self.totalDuration = int(end_time)
+
+    def getFile(self):
+        return self.filePath
+
     def getTitle(self):
+        if self.title in [None, ""]:
+            self._loadBasicDetails()
         return self.title
 
     def getCoverImage(self):
+        if self.coverImage is None:
+            self._loadBasicDetails()
         return self.coverImage
+
+    def getPosition(self):
+        if self.position < 0:
+            self._loadBasicDetails()
+        return self.position
 
     def getChapterDetails(self):
         # If the chapter information has not been loaded yet, then we need to load it
         if len(self.chapters) < 1:
             self._loadFFmpegDetails(includeCover=False)
         return self.chapters
+
+    def getTotalDuration(self):
+        if self.totalDuration < 0:
+            self._loadBasicDetails()
+        return self.totalDuration
 
     # Checks the cache to see if there is a cover for this audiobook
     def _getCachedCover(self, fileName):

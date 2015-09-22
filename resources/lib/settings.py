@@ -37,6 +37,31 @@ def os_path_join(dir, file):
     return os.path.join(dir, file)
 
 
+# Splits a path the same way as os.path.split but supports paths of a different
+# OS than that being run on
+def os_path_split(fullpath):
+    # Check if it ends in a slash
+    if fullpath.endswith("/") or fullpath.endswith("\\"):
+        # Remove the slash character
+        fullpath = fullpath[:-1]
+
+    try:
+        slash1 = fullpath.rindex("/")
+    except:
+        slash1 = -1
+
+    try:
+        slash2 = fullpath.rindex("\\")
+    except:
+        slash2 = -1
+
+    # Parse based on the last type of slash in the string
+    if slash1 > slash2:
+        return fullpath.rsplit("/", 1)
+
+    return fullpath.rsplit("\\", 1)
+
+
 # Checks if a directory exists (Do not use for files)
 def dir_exists(dirpath):
     # There is an issue with password protected smb shares, in that they seem to

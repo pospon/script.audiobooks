@@ -27,6 +27,7 @@ from settings import log
 from settings import os_path_join
 
 from audiobook import M4BHandler
+from bookplayer import BookPlayer
 
 
 ###################################################################
@@ -94,9 +95,7 @@ class MenuNavigator():
 
             fullpath = os_path_join(audioBookFolder, audioBookFile)
 
-            m4bHandle = M4BHandler(fullpath, audioBookFile)
-            # Only want the basic details to be loaded
-            m4bHandle.loadBasicDetails()
+            m4bHandle = M4BHandler(fullpath)
             title = m4bHandle.getTitle()
             coverTargetName = m4bHandle.getCoverImage()
             del m4bHandle
@@ -120,12 +119,12 @@ class MenuNavigator():
     def listChapters(self, fullpath, defaultImage):
         log("AudioBooksPlugin: Listing chapters for %s" % fullpath)
 
-        m4bHandle = M4BHandler(fullpath, "")
+        m4bHandle = M4BHandler(fullpath)
         chapters = m4bHandle.getChapterDetails()
 
         # Add all the chapters to the display
         for chapter in chapters:
-            url = self._build_url({'mode': 'play', 'filename': fullpath, 'title': chapter['title']})
+            url = self._build_url({'mode': 'play', 'filename': fullpath})
 
             li = xbmcgui.ListItem(chapter['title'], iconImage=defaultImage)
 
@@ -137,6 +136,15 @@ class MenuNavigator():
             xbmcplugin.addDirectoryItem(handle=self.addon_handle, url=url, listitem=li, isFolder=False)
 
         xbmcplugin.endOfDirectory(self.addon_handle)
+
+    def play(self, fullpath):
+        log("AudioBooksPlugin: Playing %s" % fullpath)
+
+        m4bHandle = M4BHandler(fullpath)
+
+        bookPlayer = BookPlayer()
+        bookPlayer.playAudioBook(m4bHandle)
+        del bookPlayer
 
     # Construct the context menu
     def _getContextMenu(self, filepath, chapterLink="", previousChapterLink="", isLastChapter='false'):
@@ -221,35 +229,17 @@ if __name__ == '__main__':
             menuNav.listChapters(filename[0], cover)
             del menuNav
 
-#     elif mode[0] == 'readChapter':
-#         log("EBooksPlugin: Mode is READ CHAPTER")
-#
-#         # Get the actual chapter that was navigated to
-#         filename = args.get('filename', None)
-#         link = args.get('link', None)
-#         title = args.get('title', None)
-#         isFirstChapterVal = args.get('firstChapter', None)
-#         isLastChapterVal = args.get('lastChapter', None)
-#
-#         if (title is not None) and (len(title) > 0):
-#             title = title[0]
-#         else:
-#             title = ""
-#
-#         isFirstChapter = False
-#         if (isFirstChapterVal is not None) and (len(isFirstChapterVal) > 0):
-#             if isFirstChapterVal[0] == 'true':
-#                 isFirstChapter = True
-#         isLastChapter = False
-#         if (isLastChapterVal is not None) and (len(isLastChapterVal) > 0):
-#             if isLastChapterVal[0] == 'true':
-#                 isLastChapter = True
-#
-#         if (filename is not None) and (len(filename) > 0) and (link is not None) and (len(link) > 0):
-#             menuNav = MenuNavigator(base_url, addon_handle)
-#             menuNav.readChapter(filename[0], title, link[0], isFirstChapter, isLastChapter)
-#             del menuNav
-#
+    elif mode[0] == 'play':
+        log("AudioBooksPlugin: Mode is PLAY")
+
+        # Get the actual chapter that was navigated to
+        filename = args.get('filename', None)
+
+        if (filename is not None) and (len(filename) > 0):
+            menuNav = MenuNavigator(base_url, addon_handle)
+            menuNav.play(filename[0])
+            del menuNav
+
 #     elif mode[0] == 'markReadStatus':
 #         log("EBooksPlugin: Mode is MARK READ STATUS")
 #
