@@ -124,7 +124,7 @@ class MenuNavigator():
 
         # Add all the chapters to the display
         for chapter in chapters:
-            url = self._build_url({'mode': 'play', 'filename': fullpath})
+            url = self._build_url({'mode': 'play', 'filename': fullpath, 'startTime': chapter['startTime']})
 
             li = xbmcgui.ListItem(chapter['title'], iconImage=defaultImage)
 
@@ -137,13 +137,13 @@ class MenuNavigator():
 
         xbmcplugin.endOfDirectory(self.addon_handle)
 
-    def play(self, fullpath):
+    def play(self, fullpath, startTime=0):
         log("AudioBooksPlugin: Playing %s" % fullpath)
 
         m4bHandle = M4BHandler(fullpath)
 
         bookPlayer = BookPlayer()
-        bookPlayer.playAudioBook(m4bHandle)
+        bookPlayer.playAudioBook(m4bHandle, startTime)
         del bookPlayer
 
     # Construct the context menu
@@ -234,10 +234,15 @@ if __name__ == '__main__':
 
         # Get the actual chapter that was navigated to
         filename = args.get('filename', None)
+        startTime = args.get('startTime', None)
+
+        startFrom = -1
+        if (startTime is not None) and (len(startTime) > 0):
+            startFrom = int(startTime[0])
 
         if (filename is not None) and (len(filename) > 0):
             menuNav = MenuNavigator(base_url, addon_handle)
-            menuNav.play(filename[0])
+            menuNav.play(filename[0], startFrom)
             del menuNav
 
 #     elif mode[0] == 'markReadStatus':

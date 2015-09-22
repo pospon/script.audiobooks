@@ -179,9 +179,9 @@ class M4BHandler():
 
             # chapter_num = chapter_match.group(1)
             # chapter_subnum = chapter_match.group(2)
-            start_time = chapter_match.group(3)
-            end_time = chapter_match.group(4)
-            duration = int(float(end_time) - float(start_time))
+            start_time = int(float(chapter_match.group(3)))
+            end_time = int(float(chapter_match.group(4)))
+            duration = end_time - start_time
 
             chapterTitle = ""
             if title_match:
@@ -197,7 +197,7 @@ class M4BHandler():
             self.chapters.append(detail)
 
             # The total Duration is always the end of the last chapter
-            self.totalDuration = int(end_time)
+            self.totalDuration = end_time
 
     def getFile(self):
         return self.filePath

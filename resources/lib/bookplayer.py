@@ -18,13 +18,13 @@ class BookPlayer(xbmc.Player):
 
     # Calls the media player to play the selected item
     @staticmethod
-    def playAudioBook(audioBookHandler):
+    def playAudioBook(audioBookHandler, startTime=-1):
         log("BookPlayer: Playing audio book = %s" % audioBookHandler.getFile())
 
         bookPlayer = BookPlayer()
 
         # Create a list item from the book
-        listitem = bookPlayer.getListItem(audioBookHandler)
+        listitem = bookPlayer.getListItem(audioBookHandler, startTime)
 
         # Wrap the audiobook up in a playlist
         playlist = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
@@ -66,7 +66,7 @@ class BookPlayer(xbmc.Player):
             del audiobookDB
 
     # Create a list item from an audiobook details
-    def getListItem(self, audioBookHandler):
+    def getListItem(self, audioBookHandler, startTime=-1):
         listitem = xbmcgui.ListItem()
         # Set the display title on the music player
         # Have to set this as video otherwise it will not start the audiobook at the correct Offset place
@@ -75,7 +75,6 @@ class BookPlayer(xbmc.Player):
         # If both the Icon and Thumbnail is set, the list screen will choose to show
         # the thumbnail
         coverImage = audioBookHandler.getCoverImage()
-        log("*** ROB ***: Cover image is %s" % coverImage)
         if coverImage in [None, ""]:
             coverImage = __addon__.getAddonInfo('icon')
 
@@ -83,7 +82,9 @@ class BookPlayer(xbmc.Player):
         listitem.setThumbnailImage(coverImage)
 
         # Record if the video should start playing part-way through
-        startPoint = audioBookHandler.getPosition()
+        startPoint = startTime
+        if startTime < 0:
+            startPoint = audioBookHandler.getPosition()
         if startPoint > 0:
             log("*** Rob ***: Setting offset to: %s" % str(startPoint))
             listitem.setProperty('StartOffset', str(startPoint))
