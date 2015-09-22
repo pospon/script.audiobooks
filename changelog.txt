@@ -1,2 +1,8 @@
 v1.0.0
 - Initial Release
+
+
+TODO: Make Skip button go to next/previous chapter
+TODO: Check can ffmpeg store the progress in the m4b file?
+TODO: Mark Played Chapters
+TODO: Mark Played Books
