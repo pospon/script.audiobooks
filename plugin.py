@@ -28,6 +28,7 @@ from settings import os_path_join
 
 from audiobook import M4BHandler
 from bookplayer import BookPlayer
+from database import AudioBooksDB
 
 
 ###################################################################
@@ -98,9 +99,11 @@ class MenuNavigator():
             m4bHandle = M4BHandler(fullpath)
             title = m4bHandle.getTitle()
             coverTargetName = m4bHandle.getCoverImage()
-            del m4bHandle
 
             isRead = False
+            if Settings.isMarkCompletedItems():
+                if m4bHandle.isCompleted():
+                    isRead = True
 
             displayString = title
             log("AudioBooksPlugin: Display title is %s for %s" % (displayString, fullpath))
@@ -111,8 +114,10 @@ class MenuNavigator():
             url = self._build_url({'mode': 'chapters', 'filename': fullpath, 'cover': coverTargetName})
             li = xbmcgui.ListItem(displayString, iconImage=coverTargetName)
             li.setProperty("Fanart_Image", __fanart__)
-            li.addContextMenuItems(self._getContextMenu(fullpath), replaceItems=True)
+            li.addContextMenuItems(self._getContextMenu(fullpath, m4bHandle), replaceItems=True)
             xbmcplugin.addDirectoryItem(handle=self.addon_handle, url=url, listitem=li, isFolder=True)
+
+            del m4bHandle
 
         xbmcplugin.endOfDirectory(self.addon_handle)
 
@@ -127,37 +132,31 @@ class MenuNavigator():
 
             li = xbmcgui.ListItem(__addon__.getLocalizedString(32018), iconImage=defaultImage)
             li.setProperty("Fanart_Image", __fanart__)
-            li.addContextMenuItems(self._getContextMenu(fullpath), replaceItems=True)
+            li.addContextMenuItems([], replaceItems=True)
             xbmcplugin.addDirectoryItem(handle=self.addon_handle, url=url, listitem=li, isFolder=False)
 
         secondsIn = m4bHandle.getPosition()
         if secondsIn > 0:
             url = self._build_url({'mode': 'play', 'filename': fullpath, 'startTime': secondsIn})
 
-            # Get the resume time as a display string
-            seconds = secondsIn % 60
-            minutes = 0
-            hours = 0
-
-            if secondsIn > 60:
-                minutes = ((secondsIn - seconds) % 3600) / 60
-
-            if secondsIn > 3600:
-                hours = (secondsIn - (minutes * 60) - seconds) / 3600
-
-            # Build the string up
-            displayName = "%s %d:%02d:%02d" % (__addon__.getLocalizedString(32019), hours, minutes, seconds)
+            displayTime = self._getDisplayTimeFromSeconds(secondsIn)
+            displayName = "%s %s" % (__addon__.getLocalizedString(32019), displayTime)
 
             li = xbmcgui.ListItem(displayName, iconImage=defaultImage)
             li.setProperty("Fanart_Image", __fanart__)
-            li.addContextMenuItems(self._getContextMenu(fullpath), replaceItems=True)
+            li.addContextMenuItems([], replaceItems=True)
             xbmcplugin.addDirectoryItem(handle=self.addon_handle, url=url, listitem=li, isFolder=False)
 
         # Add all the chapters to the display
         for chapter in chapters:
             url = self._build_url({'mode': 'play', 'filename': fullpath, 'startTime': chapter['startTime']})
 
-            li = xbmcgui.ListItem(chapter['title'], iconImage=defaultImage)
+            # Check if the current position means that this chapter has already been played
+            displayString = chapter['title']
+            if (m4bHandle.isCompleted()) or (chapter['endTime'] < secondsIn):
+                displayString = '* %s' % displayString
+
+            li = xbmcgui.ListItem(displayString, iconImage=defaultImage)
 
             if len(chapters) > 1:
                 durationEntry = chapter['startTime']
@@ -169,9 +168,10 @@ class MenuNavigator():
                 li.setInfo('music', {'Duration': durationEntry})
 
             li.setProperty("Fanart_Image", __fanart__)
-            li.addContextMenuItems(self._getContextMenu(fullpath), replaceItems=True)
+            li.addContextMenuItems([], replaceItems=True)
             xbmcplugin.addDirectoryItem(handle=self.addon_handle, url=url, listitem=li, isFolder=False)
 
+        del m4bHandle
         xbmcplugin.endOfDirectory(self.addon_handle)
 
     def play(self, fullpath, startTime=0):
@@ -187,36 +187,62 @@ class MenuNavigator():
         xbmc.executebuiltin("Container.Refresh")
 
     # Construct the context menu
-    def _getContextMenu(self, filepath, chapterLink="", previousChapterLink="", isLastChapter='false'):
+    def _getContextMenu(self, filepath, bookHandle):
         ctxtMenu = []
 
-        # Check if this is the last chapter of a book, or if it is the book being marked
-        # rather than just the chapter
-#         readFlag = isLastChapter
-#         if chapterLink in [None, ""]:
-#             readFlag = 'true'
-#
-#         # Mark as Read
-#         cmd = self._build_url({'mode': 'markReadStatus', 'filename': filepath, 'link': chapterLink, 'read': readFlag})
-#         ctxtMenu.append((__addon__.getLocalizedString(32011), 'RunPlugin(%s)' % cmd))
-#
-#         # Mark as Not Read
-#         # Note, marking a chapter as "Not Read" will result in the previous chapter being
-#         # marked as the last chapter that was read
-#         cmd = self._build_url({'mode': 'markReadStatus', 'filename': filepath, 'link': previousChapterLink, 'read': 'false'})
-#         ctxtMenu.append((__addon__.getLocalizedString(32012), 'RunPlugin(%s)' % cmd))
+        # Play from resume point
+        secondsIn = bookHandle.getPosition()
+        if secondsIn > 0:
+            cmd = self._build_url({'mode': 'play', 'filename': filepath, 'startTime': secondsIn})
+            displayTime = self._getDisplayTimeFromSeconds(secondsIn)
+            displayName = "%s %s" % (__addon__.getLocalizedString(32019), displayTime)
+            ctxtMenu.append((displayName, 'RunPlugin(%s)' % cmd))
+
+        # Play from start
+        cmd = self._build_url({'mode': 'play', 'filename': filepath, 'startTime': 0})
+        ctxtMenu.append((__addon__.getLocalizedString(32018), 'RunPlugin(%s)' % cmd))
+
+        # If this item is not already complete, allow it to be marked as complete
+        if not bookHandle.isCompleted():
+            # Mark as complete
+            cmd = self._build_url({'mode': 'progress', 'filename': filepath, 'isComplete': 1, 'startTime': 0})
+            ctxtMenu.append((__addon__.getLocalizedString(32010), 'RunPlugin(%s)' % cmd))
+
+        # Clear History
+        cmd = self._build_url({'mode': 'clear', 'filename': filepath})
+        ctxtMenu.append((__addon__.getLocalizedString(32011), 'RunPlugin(%s)' % cmd))
 
         return ctxtMenu
 
-#     def markReadStatus(self, fullpath, chapterLink, markRead):
-#         # If there is no chapter link then we are clearing the read flag for the whole book
-#         # If the request was just for a chapter, then we would have been given the previous
-#         # chapter that would have been marked as read
-#         bookDB = EbooksDB()
-#         bookDB.setReadChapter(fullpath, chapterLink, markRead)
-#         del bookDB
-#
-#         xbmc.executebuiltin("Container.Refresh")
+    def progress(self, fullpath, isComplete=True, startTime=0):
+        # At the moment the only time progress is called is to mark as complete
+
+        audiobookDB = AudioBooksDB()
+        audiobookDB.setPosition(fullpath, startTime, isComplete)
+        del audiobookDB
+
+        xbmc.executebuiltin("Container.Refresh")
+
+    def clear(self, fullpath):
+        # Remove the item from the database, it will then be rescanned
+        audiobookDB = AudioBooksDB()
+        audiobookDB.deleteAudioBook(fullpath)
+        del audiobookDB
+
+        xbmc.executebuiltin("Container.Refresh")
+
+    def _getDisplayTimeFromSeconds(self, secondsIn):
+        seconds = secondsIn % 60
+        minutes = 0
+        hours = 0
+        if secondsIn > 60:
+            minutes = ((secondsIn - seconds) % 3600) / 60
+        if secondsIn > 3600:
+            hours = (secondsIn - (minutes * 60) - seconds) / 3600
+
+        # Build the string up
+        displayName = "%d:%02d:%02d" % (hours, minutes, seconds)
+        return displayName
 
 
 ################################
@@ -272,7 +298,7 @@ if __name__ == '__main__':
     elif mode[0] == 'play':
         log("AudioBooksPlugin: Mode is PLAY")
 
-        # Get the actual chapter that was navigated to
+        # Get the book that we need to play
         filename = args.get('filename', None)
         startTime = args.get('startTime', None)
 
@@ -285,24 +311,34 @@ if __name__ == '__main__':
             menuNav.play(filename[0], startFrom)
             del menuNav
 
-#     elif mode[0] == 'markReadStatus':
-#         log("EBooksPlugin: Mode is MARK READ STATUS")
-#
-#         filename = args.get('filename', None)
-#         link = args.get('link', None)
-#         readStatus = args.get('read', None)
-#
-#         if (link is not None) and (len(link) > 0):
-#             link = link[0]
-#         else:
-#             link = ""
-#
-#         markRead = False
-#         if (readStatus is not None) and (len(readStatus) > 0):
-#             if readStatus[0] == 'true':
-#                 markRead = True
-#
-#         if (filename is not None) and (len(filename) > 0):
-#             menuNav = MenuNavigator(base_url, addon_handle)
-#             menuNav.markReadStatus(filename[0], link, markRead)
-#             del menuNav
+    elif mode[0] == 'progress':
+        log("EBooksPlugin: Mode is PROGRESS")
+
+        filename = args.get('filename', None)
+        startTime = args.get('startTime', None)
+        completeStatus = args.get('isComplete', None)
+
+        startTimeVal = 0
+        if (startTime is not None) and (len(startTime) > 0):
+            startTimeVal = int(startTime[0])
+
+        isComplete = False
+        if (completeStatus is not None) and (len(completeStatus) > 0):
+            if completeStatus[0] == '1':
+                isComplete = True
+
+        if (filename is not None) and (len(filename) > 0):
+            menuNav = MenuNavigator(base_url, addon_handle)
+            menuNav.progress(filename[0], isComplete, startTimeVal)
+            del menuNav
+
+    elif mode[0] == 'clear':
+        log("AudioBooksPlugin: Mode is CLEAR")
+
+        # Get the book to remove
+        filename = args.get('filename', None)
+
+        if (filename is not None) and (len(filename) > 0):
+            menuNav = MenuNavigator(base_url, addon_handle)
+            menuNav.clear(filename[0])
+            del menuNav

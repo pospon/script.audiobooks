@@ -33,6 +33,7 @@ class M4BHandler():
         self.numChapters = 0
         self.position = -1
         self.totalDuration = -1
+        self.isComplete = None
 
     # Will load the basic details needed for simple listings
     def _loadBasicDetails(self):
@@ -49,8 +50,10 @@ class M4BHandler():
             self.title = audiobookDetails['title']
             self.numChapters = audiobookDetails['numChapters']
             self.position = audiobookDetails['position']
+            self.isComplete = audiobookDetails['complete']
         else:
             self.position = 0
+            self.isComplete = False
             self._loadFFmpegDetails()
 
             if self.title in [None, ""]:
@@ -225,8 +228,14 @@ class M4BHandler():
 
     def getTotalDuration(self):
         if self.totalDuration < 0:
-            self._loadBasicDetails()
+            # The duration is actually set by the last chapter
+            self._loadFFmpegDetails(includeCover=False)
         return self.totalDuration
+
+    def isCompleted(self):
+        if self.isComplete is None:
+            self._loadBasicDetails()
+        return self.isComplete
 
     # Checks the cache to see if there is a cover for this audiobook
     def _getCachedCover(self, fileName):

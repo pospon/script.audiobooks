@@ -3,6 +3,7 @@
 	<category label="32002">
 		<setting id="audioBooksFolder" label="32005" type="folder"/>
 		<setting id="ffmpegLocation" label="32015" type="file"/>
+    	<setting id="markCompletedItems" label="32016" type="bool" default="true"/>
 		<setting id="fallbackCoverImage" label="32014" type="image"/>
 	</category>
 	<category label="32007">

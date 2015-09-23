@@ -166,3 +166,19 @@ class AudioBooksDB():
 
         conn.close()
         return results
+
+    # Delete an entry from the database
+    def deleteAudioBook(self, fullPath):
+        log("AudioBooksDB: delete for %s" % fullPath)
+
+        # Get a connection to the DB
+        conn = self.getConnection()
+        c = conn.cursor()
+        # Delete any existing data from the database
+        cmd = 'DELETE FROM books where fullpath = ?'
+        c.execute(cmd, (fullPath,))
+        conn.commit()
+
+        log("AudioBooksDB: delete for %s removed %d rows" % (fullPath, conn.total_changes))
+
+        conn.close()

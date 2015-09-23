@@ -104,6 +104,10 @@ class Settings():
         return location
 
     @staticmethod
+    def isMarkCompletedItems():
+        return __addon__.getSetting("markCompletedItems") == 'true'
+
+    @staticmethod
     def getFallbackCoverImage():
         fallbackCover = __addon__.getSetting("fallbackCoverImage")
         if fallbackCover in [None, ""]:

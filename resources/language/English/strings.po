@@ -65,7 +65,7 @@ msgid "Mark As Complete"
 msgstr ""
 
 msgctxt "#32011"
-msgid "Mark As Not Complete"
+msgid "Clear History"
 msgstr ""
 
 msgctxt "#32012"
@@ -85,7 +85,7 @@ msgid "ffmpeg Location"
 msgstr ""
 
 msgctxt "#32016"
-msgid "ffprobe Location"
+msgid "Highlight Completed Books And Chapters"
 msgstr ""
 
 msgctxt "#32017"

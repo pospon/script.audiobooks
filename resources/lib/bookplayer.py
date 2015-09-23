@@ -42,10 +42,6 @@ class BookPlayer(xbmc.Player):
         if loopCount == 0:
             return
 
-        # Get the total duration and round it down to the nearest second
-        bookDuration = int(bookPlayer.getTotalTime())
-        log("BookPlayer: TotalTime of book = %d" % bookDuration)
-
         currentTime = 0
         # Wait for the player to stop
         while bookPlayer.isPlaying():
@@ -58,8 +54,11 @@ class BookPlayer(xbmc.Player):
 
         if currentTime > 0:
             bookComplete = False
-            if currentTime > (audioBookHandler.getTotalDuration() - 60):
-                bookComplete = True
+            duration = audioBookHandler.getTotalDuration()
+            log("BookPlayer: Total book duration is %d" % duration)
+            if duration > 1:
+                if currentTime > (audioBookHandler.getTotalDuration() - 60):
+                    bookComplete = True
 
             audiobookDB = AudioBooksDB()
             audiobookDB.setPosition(audioBookHandler.getFile(), currentTime, bookComplete)
