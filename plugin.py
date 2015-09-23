@@ -159,8 +159,14 @@ class MenuNavigator():
 
             li = xbmcgui.ListItem(chapter['title'], iconImage=defaultImage)
 
-            if chapter['duration'] > 0:
-                li.setInfo('music', {'Duration': chapter['duration']})
+            if len(chapters) > 1:
+                durationEntry = chapter['startTime']
+                # If the duration is set as zero, nothing is displayed
+                if durationEntry < 1:
+                    durationEntry = 1
+                # Use the start time for the duration display as that will show
+                # how far through the book the chapter is
+                li.setInfo('music', {'Duration': durationEntry})
 
             li.setProperty("Fanart_Image", __fanart__)
             li.addContextMenuItems(self._getContextMenu(fullpath), replaceItems=True)
