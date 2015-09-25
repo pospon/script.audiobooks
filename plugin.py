@@ -26,7 +26,7 @@ from settings import Settings
 from settings import log
 from settings import os_path_join
 
-from audiobook import M4BHandler
+from audiobook import AudioBookHandler
 from bookplayer import BookPlayer
 from database import AudioBooksDB
 
@@ -70,62 +70,93 @@ class MenuNavigator():
 
         dirs, files = xbmcvfs.listdir(audioBookFolder)
 
+        bookDirs = []
         # For each directory list allow the user to navigate into it
         for dir in dirs:
             if dir.startswith('.'):
                 continue
 
+            fullDir = os_path_join(audioBookFolder, dir)
+
+            # Check if this directory is a book directory
+            if self._isAudioBookDir(fullDir):
+                bookDirs.append(fullDir)
+                continue
+
             log("AudioBooksPlugin: Adding directory %s" % dir)
 
-            nextDir = os_path_join(audioBookFolder, dir)
             displayName = "[%s]" % dir
 
-            url = self._build_url({'mode': 'directory', 'directory': nextDir})
+            url = self._build_url({'mode': 'directory', 'directory': fullDir})
             li = xbmcgui.ListItem(displayName, iconImage='DefaultFolder.png')
             li.setProperty("Fanart_Image", __fanart__)
             li.addContextMenuItems([], replaceItems=True)
             xbmcplugin.addDirectoryItem(handle=self.addon_handle, url=url, listitem=li, isFolder=True)
 
-        # Now list all of the books
-        for audioBookFile in files:
-            log("AudioBooksPlugin: Processing file %s" % audioBookFile)
+        m4bAudioBooks = []
+        for m4bBookFile in files:
             # Check to ensure that this is an eBook
-            if not audioBookFile.endswith('.m4b'):
-                log("AudioBooksPlugin: Skipping non audiobook file: %s" % audioBookFile)
+            if not m4bBookFile.lower().endswith('.m4b'):
+                log("AudioBooksPlugin: Skipping non audiobook file: %s" % m4bBookFile)
                 continue
 
-            fullpath = os_path_join(audioBookFolder, audioBookFile)
+            fullpath = os_path_join(audioBookFolder, m4bBookFile)
 
-            m4bHandle = M4BHandler(fullpath)
-            title = m4bHandle.getTitle()
-            coverTargetName = m4bHandle.getCoverImage()
+            m4bAudioBooks.append(fullpath)
+
+        # Get all the audiobook in a nicely sorted order
+        allAudioBooks = sorted(bookDirs + m4bAudioBooks)
+
+        # Now list all of the books
+        for audioBookFile in allAudioBooks:
+            log("AudioBooksPlugin: Processing audiobook %s" % audioBookFile)
+
+            audioBookHandler = AudioBookHandler.createHandler(audioBookFile)
+
+            title = audioBookHandler.getTitle()
+            coverTargetName = audioBookHandler.getCoverImage()
 
             isRead = False
             if Settings.isMarkCompletedItems():
-                if m4bHandle.isCompleted():
+                if audioBookHandler.isCompleted():
                     isRead = True
 
             displayString = title
-            log("AudioBooksPlugin: Display title is %s for %s" % (displayString, fullpath))
+            log("AudioBooksPlugin: Display title is %s for %s" % (displayString, audioBookFile))
 
             if isRead:
                 displayString = '* %s' % displayString
 
-            url = self._build_url({'mode': 'chapters', 'filename': fullpath, 'cover': coverTargetName})
+            url = self._build_url({'mode': 'chapters', 'filename': audioBookFile, 'cover': coverTargetName})
             li = xbmcgui.ListItem(displayString, iconImage=coverTargetName)
             li.setProperty("Fanart_Image", __fanart__)
-            li.addContextMenuItems(self._getContextMenu(fullpath, m4bHandle), replaceItems=True)
+            li.addContextMenuItems(self._getContextMenu(fullpath, audioBookHandler), replaceItems=True)
             xbmcplugin.addDirectoryItem(handle=self.addon_handle, url=url, listitem=li, isFolder=True)
 
-            del m4bHandle
+            del audioBookHandler
 
         xbmcplugin.endOfDirectory(self.addon_handle)
+
+    def _isAudioBookDir(self, fullDir):
+        # Check to see if this directory contains audio files (non m4b), if it does then we construct the
+        # book using each audio file file as a chapter
+        dirs, files = xbmcvfs.listdir(fullDir)
+
+        containsMP3 = False
+        for aFile in files:
+            if Settings.isPlainAudioFile(aFile):
+                log("AudioBooksPlugin: Directory contains MP3 files: %s" % fullDir)
+                containsMP3 = True
+                break
+
+        return containsMP3
 
     def listChapters(self, fullpath, defaultImage):
         log("AudioBooksPlugin: Listing chapters for %s" % fullpath)
 
-        m4bHandle = M4BHandler(fullpath)
-        chapters = m4bHandle.getChapterDetails()
+        audioBookHandler = AudioBookHandler.createHandler(fullpath)
+
+        chapters = audioBookHandler.getChapterDetails()
 
         if len(chapters) < 1:
             url = self._build_url({'mode': 'play', 'filename': fullpath, 'startTime': 0})
@@ -135,7 +166,7 @@ class MenuNavigator():
             li.addContextMenuItems([], replaceItems=True)
             xbmcplugin.addDirectoryItem(handle=self.addon_handle, url=url, listitem=li, isFolder=False)
 
-        secondsIn = m4bHandle.getPosition()
+        secondsIn = audioBookHandler.getPosition()
         if secondsIn > 0:
             url = self._build_url({'mode': 'play', 'filename': fullpath, 'startTime': secondsIn})
 
@@ -153,7 +184,7 @@ class MenuNavigator():
 
             # Check if the current position means that this chapter has already been played
             displayString = chapter['title']
-            if (m4bHandle.isCompleted()) or (chapter['endTime'] < secondsIn):
+            if (audioBookHandler.isCompleted()) or ((chapter['endTime'] < secondsIn) and (chapter['endTime'] > 0)):
                 displayString = '* %s' % displayString
 
             li = xbmcgui.ListItem(displayString, iconImage=defaultImage)
@@ -161,7 +192,7 @@ class MenuNavigator():
             if len(chapters) > 1:
                 durationEntry = chapter['startTime']
                 # If the duration is set as zero, nothing is displayed
-                if durationEntry < 1:
+                if (durationEntry < 1) and (chapter['endTime'] > 0):
                     durationEntry = 1
                 # Use the start time for the duration display as that will show
                 # how far through the book the chapter is
@@ -171,19 +202,20 @@ class MenuNavigator():
             li.addContextMenuItems([], replaceItems=True)
             xbmcplugin.addDirectoryItem(handle=self.addon_handle, url=url, listitem=li, isFolder=False)
 
-        del m4bHandle
+        del audioBookHandler
         xbmcplugin.endOfDirectory(self.addon_handle)
 
     def play(self, fullpath, startTime=0):
         log("AudioBooksPlugin: Playing %s" % fullpath)
 
-        m4bHandle = M4BHandler(fullpath)
+        audioBookHandler = AudioBookHandler.createHandler(fullpath)
 
         bookPlayer = BookPlayer()
-        bookPlayer.playAudioBook(m4bHandle, startTime)
+        bookPlayer.playAudioBook(audioBookHandler, startTime)
         del bookPlayer
+        del audioBookHandler
 
-        # After playing we need to update the screen to refrlect our progress
+        # After playing we need to update the screen to reflect our progress
         xbmc.executebuiltin("Container.Refresh")
 
     # Construct the context menu

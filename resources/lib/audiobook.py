@@ -6,6 +6,7 @@ import subprocess
 import traceback
 import xbmc
 import xbmcvfs
+import xbmcgui
 import xbmcaddon
 
 __addon__ = xbmcaddon.Addon(id='script.audiobooks')
@@ -22,8 +23,8 @@ from settings import os_path_split
 from database import AudioBooksDB
 
 
-# Generic class for handling m4b details
-class M4BHandler():
+# Generic class for handling audiobook details
+class AudioBookHandler():
     def __init__(self, audioBookFilePath):
         self.filePath = audioBookFilePath
         self.fileName = os_path_split(audioBookFilePath)[-1]
@@ -35,9 +36,20 @@ class M4BHandler():
         self.totalDuration = -1
         self.isComplete = None
 
+    @staticmethod
+    def createHandler(audioBookFilePath):
+        audiobookType = None
+        # Check which type of Audiobook it is
+        if audioBookFilePath.lower().endswith('.m4b'):
+            audiobookType = M4BHandler(audioBookFilePath)
+        else:
+            audiobookType = FolderHandler(audioBookFilePath)
+
+        return audiobookType
+
     # Will load the basic details needed for simple listings
-    def _loadBasicDetails(self):
-        log("M4BHandler: Loading audio book %s (%s)" % (self.filePath, self.fileName))
+    def _loadDetails(self):
+        log("AudioBookHandler: Loading audio book %s (%s)" % (self.filePath, self.fileName))
 
         # Check to see if we already have an image available
         self.coverImage = self._getExistingCoverImage()
@@ -54,10 +66,10 @@ class M4BHandler():
         else:
             self.position = 0
             self.isComplete = False
-            self._loadFFmpegDetails()
+            self._loadSpecificDetails()
 
             if self.title in [None, ""]:
-                log("M4BHandler: No title found for %s, using filename" % self.filePath)
+                log("AudioBookHandler: No title found for %s, using filename" % self.filePath)
                 self.title = self._getFallbackTitle()
 
             self.numChapters = len(self.chapters)
@@ -67,20 +79,131 @@ class M4BHandler():
 
         del audiobookDB
 
+    def _loadSpecificDetails(self, includeCover=True):
+        pass
+
+    def getFile(self):
+        return self.filePath
+
+    def getTitle(self):
+        if self.title in [None, ""]:
+            self._loadDetails()
+        return self.title
+
+    def getCoverImage(self):
+        if self.coverImage is None:
+            self._loadDetails()
+        return self.coverImage
+
+    def getPosition(self):
+        if self.position < 0:
+            self._loadDetails()
+        return self.position
+
+    def getChapterDetails(self):
+        # If the chapter information has not been loaded yet, then we need to load it
+        if len(self.chapters) < 1:
+            self._loadSpecificDetails(includeCover=False)
+        return self.chapters
+
+    def getTotalDuration(self):
+        if self.totalDuration < 0:
+            # The duration is actually set by the last chapter
+            self._loadSpecificDetails(includeCover=False)
+        return self.totalDuration
+
+    def isCompleted(self):
+        if self.isComplete is None:
+            self._loadDetails()
+        return self.isComplete
+
+    # Create a list item from an audiobook details
+    def getPlayList(self, startTime=-1):
+        log("AudioBookHandler: Getting playlist to start for time %d" % startTime)
+        listitem = self._getListItem(self.getTitle(), startTime)
+
+        # Wrap the audiobook up in a playlist
+        playlist = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
+        playlist.clear()
+        playlist.add(self.getFile(), listitem)
+
+        return playlist
+
+    # Create a list item from an audiobook details
+    def _getListItem(self, title, startTime=-1, chapterTitle=''):
+        log("AudioBookHandler: Getting listitem for %s (Chapter: %s)" % (title, chapterTitle))
+
+        listitem = xbmcgui.ListItem()
+        # Set the display title on the music player
+        # Have to set this as video otherwise it will not start the audiobook at the correct Offset place
+        listitem.setInfo('video', {'Title': title})
+
+        if chapterTitle not in [None, ""]:
+            listitem.setInfo('music', {'album': chapterTitle})
+
+        # If both the Icon and Thumbnail is set, the list screen will choose to show
+        # the thumbnail
+        coverImage = self.getCoverImage()
+        if coverImage in [None, ""]:
+            coverImage = __addon__.getAddonInfo('icon')
+
+        listitem.setIconImage(coverImage)
+        listitem.setThumbnailImage(coverImage)
+
+        # Record if the video should start playing part-way through
+        startPoint = startTime
+        if startTime < 0:
+            startPoint = self.getPosition()
+        if startPoint > 0:
+            listitem.setProperty('StartOffset', str(startPoint))
+
+        return listitem
+
     def _getExistingCoverImage(self):
         # Check if there is a cached version, or a local one on the drive
         fullpathLocalImage, bookExt = os.path.splitext(self.filePath)
         fullpathLocalImage = "%s.jpg" % fullpathLocalImage
 
         if xbmcvfs.exists(fullpathLocalImage):
-            log("M4BHandler: Found local cached image %s" % fullpathLocalImage)
+            log("AudioBookHandler: Found local cached image %s" % fullpathLocalImage)
             return fullpathLocalImage
 
         # Check for a cached cover
         return self._getCachedCover(self.fileName)
 
+    # Checks the cache to see if there is a cover for this audiobook
+    def _getCachedCover(self, fileName):
+        cachedCover = None
+        # check if the directory exists before searching
+        dirs, files = xbmcvfs.listdir(Settings.getCoverCacheLocation())
+        for aFile in files:
+            # Get the filename without extension
+            coverSrc, ext = os.path.splitext(aFile)
+
+            # Get the name that the cached cover will have been stored as
+            targetSrc, bookExt = os.path.splitext(fileName)
+
+            if targetSrc == coverSrc:
+                cachedCover = os_path_join(Settings.getCoverCacheLocation(), aFile)
+                log("AudioBookHandler: Cached cover found: %s" % cachedCover)
+
+        return cachedCover
+
+    def _getFallbackTitle(self):
+        # Remove anything after the final dot
+        sections = self.fileName.split('.')
+        sections.pop()
+        # Replace the dots with spaces
+        return ' '.join(sections)
+
+
+# Class for handling m4b files
+class M4BHandler(AudioBookHandler):
+    def __init__(self, audioBookFilePath):
+        AudioBookHandler.__init__(self, audioBookFilePath)
+
     # Will load the basic details needed for simple listings
-    def _loadFFmpegDetails(self, includeCover=True):
+    def _loadSpecificDetails(self, includeCover=True):
         # Check to see if ffmpeg is enabled
         ffmpeg = Settings.getFFmpegLocation()
 
@@ -202,62 +325,61 @@ class M4BHandler():
             # The total Duration is always the end of the last chapter
             self.totalDuration = end_time
 
-    def getFile(self):
-        return self.filePath
-
-    def getTitle(self):
-        if self.title in [None, ""]:
-            self._loadBasicDetails()
-        return self.title
-
-    def getCoverImage(self):
-        if self.coverImage is None:
-            self._loadBasicDetails()
-        return self.coverImage
-
-    def getPosition(self):
-        if self.position < 0:
-            self._loadBasicDetails()
-        return self.position
-
-    def getChapterDetails(self):
-        # If the chapter information has not been loaded yet, then we need to load it
-        if len(self.chapters) < 1:
-            self._loadFFmpegDetails(includeCover=False)
-        return self.chapters
-
-    def getTotalDuration(self):
-        if self.totalDuration < 0:
-            # The duration is actually set by the last chapter
-            self._loadFFmpegDetails(includeCover=False)
-        return self.totalDuration
-
-    def isCompleted(self):
-        if self.isComplete is None:
-            self._loadBasicDetails()
-        return self.isComplete
-
-    # Checks the cache to see if there is a cover for this audiobook
-    def _getCachedCover(self, fileName):
-        cachedCover = None
-        # check if the directory exists before searching
-        dirs, files = xbmcvfs.listdir(Settings.getCoverCacheLocation())
-        for aFile in files:
-            # Get the filename without extension
-            coverSrc, ext = os.path.splitext(aFile)
-
-            # Get the name that the cached cover will have been stored as
-            targetSrc, bookExt = os.path.splitext(fileName)
-
-            if targetSrc == coverSrc:
-                cachedCover = os_path_join(Settings.getCoverCacheLocation(), aFile)
-                log("M4BHandler: Cached cover found: %s" % cachedCover)
-
-        return cachedCover
-
     def _getFallbackTitle(self):
         # Remove anything after the final dot
         sections = self.fileName.split('.')
         sections.pop()
         # Replace the dots with spaces
         return ' '.join(sections)
+
+
+# Class for handling m4b files
+class FolderHandler(AudioBookHandler):
+    def __init__(self, audioBookFilePath):
+        AudioBookHandler.__init__(self, audioBookFilePath)
+        # The fileName value will be the directory name for Folder audiobooks
+        self.chapterFiles = []
+
+    # Will load the basic details needed for simple listings
+    def _loadSpecificDetails(self, includeCover=True):
+        # List all the files in the directory, as that will be the chapters
+        dirs, files = xbmcvfs.listdir(self.filePath)
+
+        for audioFile in files:
+            if not Settings.isPlainAudioFile(audioFile):
+                continue
+
+            # Now generate the name of the chapter from the audio file
+            sections = audioFile.split('.')
+            sections.pop()
+            # Replace the dots with spaces
+            chapterTitle = ' '.join(sections)
+
+            detail = {'title': chapterTitle, 'startTime': 0, 'endTime': 0, 'duration': 0}
+            self.chapters.append(detail)
+
+            # Store this audio file in the chapter file list
+            fullpath = os_path_join(self.filePath, audioFile)
+            self.chapterFiles.append(fullpath)
+
+    # Create a list item from an audiobook details
+    def getPlayList(self, startTime=-1):
+        log("FolderHandler: Getting playlist to start for time %d" % startTime)
+
+        # Wrap the audiobook up in a playlist
+        playlist = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
+        playlist.clear()
+
+        # Add each chapter file
+        idx = 0
+        while idx < len(self.getChapterDetails()):
+            chapterDetail = self.chapters[idx]
+            listitem = self._getListItem(self.getTitle(), 0, chapterDetail['title'])
+            playlist.add(self.chapterFiles[idx], listitem)
+            idx += 1
+
+        return playlist
+
+    def _getFallbackTitle(self):
+        # Replace the dots with spaces
+        return self.fileName.replace('.', ' ')
