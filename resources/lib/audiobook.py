@@ -33,6 +33,7 @@ class AudioBookHandler():
         self.chapters = []
         self.numChapters = 0
         self.position = -1
+        self.chapterPosition = -1
         self.totalDuration = -1
         self.isComplete = None
 
@@ -62,9 +63,11 @@ class AudioBookHandler():
             self.title = audiobookDetails['title']
             self.numChapters = audiobookDetails['numChapters']
             self.position = audiobookDetails['position']
+            self.chapterPosition = audiobookDetails['chapterPosition']
             self.isComplete = audiobookDetails['complete']
         else:
             self.position = 0
+            self.chapterPosition = 0
             self.isComplete = False
             self._loadSpecificDetails()
 
@@ -98,7 +101,7 @@ class AudioBookHandler():
     def getPosition(self):
         if self.position < 0:
             self._loadDetails()
-        return self.position
+        return self.position, self.chapterPosition
 
     def getChapterDetails(self):
         # If the chapter information has not been loaded yet, then we need to load it
@@ -117,8 +120,12 @@ class AudioBookHandler():
             self._loadDetails()
         return self.isComplete
 
+    def getChapterPosition(self, filename):
+        # Default behaviour is to not track using the chapter
+        return 0
+
     # Create a list item from an audiobook details
-    def getPlayList(self, startTime=-1):
+    def getPlayList(self, startTime=-1, startChapter=0):
         log("AudioBookHandler: Getting playlist to start for time %d" % startTime)
         listitem = self._getListItem(self.getTitle(), startTime)
 
@@ -363,7 +370,7 @@ class FolderHandler(AudioBookHandler):
             self.chapterFiles.append(fullpath)
 
     # Create a list item from an audiobook details
-    def getPlayList(self, startTime=-1):
+    def getPlayList(self, startTime=-1, startChapter=0):
         log("FolderHandler: Getting playlist to start for time %d" % startTime)
 
         # Wrap the audiobook up in a playlist
@@ -372,14 +379,53 @@ class FolderHandler(AudioBookHandler):
 
         # Add each chapter file
         idx = 0
+        startPosition = 0
+        if startTime > 0:
+            startPosition = startTime
+
+        # Start on the correct chapter
+        if startChapter > 1:
+            idx = startChapter - 1
+
         while idx < len(self.getChapterDetails()):
             chapterDetail = self.chapters[idx]
-            listitem = self._getListItem(self.getTitle(), 0, chapterDetail['title'])
+            listitem = self._getListItem(self.getTitle(), startPosition, chapterDetail['title'])
             playlist.add(self.chapterFiles[idx], listitem)
+            # Once we set the correct starting position for the main chapter, reset it
+            # that that the next chapters start at the beginning
+            startPosition = 0
             idx += 1
 
         return playlist
 
+    def getChapterPosition(self, filename):
+        chapterPosition = 0
+        if len(self.chapterFiles) < 1:
+            self._loadSpecificDetails(False)
+
+        if filename in self.chapterFiles:
+            chapterPosition = self.chapterFiles.index(filename)
+            chapterPosition += 1
+            log("FolderHandler: Found Chapter at position %d for %s" % (chapterPosition, filename))
+
+        return chapterPosition
+
     def _getFallbackTitle(self):
         # Replace the dots with spaces
         return self.fileName.replace('.', ' ')
+
+    def _getExistingCoverImage(self):
+        # Call the common cover file check first
+        coverImg = AudioBookHandler._getExistingCoverImage(self)
+
+        # There is an extra check that we can make for folder audiobooks
+        # so if one has not been found then look in the folder for folder.jpg
+        if coverImg is None:
+            dirs, files = xbmcvfs.listdir(self.filePath)
+
+            for coverFile in files:
+                if coverFile.lower() in ['folder.jpg', 'folder.png']:
+                    coverImg = os_path_join(self.filePath, coverFile)
+                    break
+
+        return coverImg
