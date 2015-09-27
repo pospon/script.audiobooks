@@ -108,6 +108,10 @@ class Settings():
         return __addon__.getSetting("markCompletedItems") == 'true'
 
     @staticmethod
+    def autoNumberChapters():
+        return __addon__.getSetting("autoNumberChapters") == 'true'
+
+    @staticmethod
     def getFallbackCoverImage():
         fallbackCover = __addon__.getSetting("fallbackCoverImage")
         if fallbackCover in [None, ""]:

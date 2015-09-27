@@ -66,7 +66,7 @@ class BookPlayer(xbmc.Player):
             duration = audioBookHandler.getTotalDuration()
             log("BookPlayer: Total book duration is %d" % duration)
             if duration > 1:
-                if currentTime > (audioBookHandler.getTotalDuration() - 60):
+                if currentTime > (duration - 60):
                     bookComplete = True
 
             audiobookDB = AudioBooksDB()

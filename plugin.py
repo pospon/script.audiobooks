@@ -185,10 +185,19 @@ class MenuNavigator():
         chapterNum = 0
         for chapter in chapters:
             chapterNum += 1
-            url = self._build_url({'mode': 'play', 'filename': fullpath, 'startTime': chapter['startTime'], 'chapter': chapterNum})
+            url = self._build_url({'mode': 'play', 'filename': fullpath, 'startTime': audioBookHandler.getChapterStart(chapterNum), 'chapter': chapterNum})
 
             # Check if the current position means that this chapter has already been played
             displayString = chapter['title']
+
+            # Check if we need to add a number at the start of the chapter
+            if Settings.autoNumberChapters() and (len(displayString) > 0):
+                # Check to make sure that the display chapter does not already
+                # start with a number, or end with a number
+                log("*** ROB ***: title: %s, first: %s (%s), last %s (%s)" % (chapter['title'], displayString[0], str(displayString[0].isdigit()), displayString[-1], str(displayString[-1].isdigit())))
+                if not (displayString[0].isdigit() or displayString[-1].isdigit()):
+                    displayString = "%d. %s" % (chapterNum, displayString)
+
             if Settings.isMarkCompletedItems():
                 if (audioBookHandler.isCompleted()) or ((chapter['endTime'] < secondsIn) and (chapter['endTime'] > 0)) or (chapterNum < chapterPosition):
                     displayString = '* %s' % displayString
