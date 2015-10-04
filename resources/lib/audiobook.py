@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import locale
 import sys
 import re
 import subprocess
@@ -85,18 +86,33 @@ class AudioBookHandler():
     def _loadSpecificDetails(self, includeCover=True):
         pass
 
-    def getFile(self):
-        return self.filePath
+    def getFile(self, tryUtf8=False):
+        filePathValue = self.filePath
+        if tryUtf8:
+            try:
+                filePathValue = filePathValue.encode("utf-8")
+            except:
+                pass
+        return filePathValue
 
     def getTitle(self):
         if self.title in [None, ""]:
             self._loadDetails()
         return self.title
 
-    def getCoverImage(self):
+    def getCoverImage(self, tryUtf8=False):
         if self.coverImage is None:
             self._loadDetails()
-        return self.coverImage
+
+        coverImageValue = self.coverImage
+        # Make sure the cover is correctly encoded
+        if tryUtf8 and (coverImageValue not in [None, ""]):
+            try:
+                coverImageValue = coverImageValue.encode("utf-8")
+            except:
+                pass
+
+        return coverImageValue
 
     def getPosition(self):
         if self.position < 0:
@@ -236,8 +252,26 @@ class AudioBookHandler():
             # Generate the ffmpeg command
             ffmpegCmd = [ffmpeg, '-hide_banner', '-y', '-i', fullFileName]
 
+            # Handle non ascii characters in the file name path
+            try:
+                ffmpegCmd[4] = ffmpegCmd[4].decode('utf-8').encode(locale.getpreferredencoding())
+            except:
+                log("AudioBookHandler: Failed file system encoding ffmpeg command 1, using default")
+                try:
+                    ffmpegCmd[4] = ffmpegCmd[4].encode(locale.getpreferredencoding())
+                except:
+                    log("AudioBookHandler: Failed file system encoding ffmpeg command 2, using default")
+
             # Add the output image to the command line if it is needed
             if coverTempName is not None:
+                try:
+                    coverTempName = coverTempName.decode('utf-8').encode(locale.getpreferredencoding())
+                except:
+                    log("AudioBookHandler: Failed file system encoding coverTempName ffmpeg command 1, using default")
+                    try:
+                        coverTempName = coverTempName.encode(locale.getpreferredencoding())
+                    except:
+                        log("AudioBookHandler: Failed file system encoding coverTempName ffmpeg command 2, using default")
                 ffmpegCmd.append(coverTempName)
 
             # Make the ffmpeg call
@@ -541,8 +575,15 @@ class FolderHandler(AudioBookHandler):
         if len(self.chapterFiles) < 1:
             self._loadSpecificDetails(False)
 
-        if filename in self.chapterFiles:
-            chapterPosition = self.chapterFiles.index(filename)
+        # Make sure the filename passed in is not utf-8 othersise it will not work
+        compareFilename = filename
+        try:
+            compareFilename = compareFilename .decode('utf-8')
+        except:
+            pass
+
+        if compareFilename in self.chapterFiles:
+            chapterPosition = self.chapterFiles.index(compareFilename)
             chapterPosition += 1
             log("FolderHandler: Found Chapter at position %d for %s" % (chapterPosition, filename))
 

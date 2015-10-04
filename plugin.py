@@ -86,6 +86,10 @@ class MenuNavigator():
             log("AudioBooksPlugin: Adding directory %s" % dir)
 
             displayName = "[%s]" % dir
+            try:
+                fullDir = fullDir.encode("utf-8")
+            except:
+                pass
 
             url = self._build_url({'mode': 'directory', 'directory': fullDir})
             li = xbmcgui.ListItem(displayName, iconImage='DefaultFolder.png')
@@ -114,7 +118,7 @@ class MenuNavigator():
             audioBookHandler = AudioBookHandler.createHandler(audioBookFile)
 
             title = audioBookHandler.getTitle()
-            coverTargetName = audioBookHandler.getCoverImage()
+            coverTargetName = audioBookHandler.getCoverImage(True)
 
             isRead = False
             if Settings.isMarkCompletedItems():
@@ -127,7 +131,7 @@ class MenuNavigator():
             if isRead:
                 displayString = '* %s' % displayString
 
-            url = self._build_url({'mode': 'chapters', 'filename': audioBookFile, 'cover': coverTargetName})
+            url = self._build_url({'mode': 'chapters', 'filename': audioBookHandler.getFile(True), 'cover': coverTargetName})
             li = xbmcgui.ListItem(displayString, iconImage=coverTargetName)
             li.setProperty("Fanart_Image", __fanart__)
             li.addContextMenuItems(self._getContextMenu(audioBookHandler), replaceItems=True)
@@ -159,7 +163,7 @@ class MenuNavigator():
         chapters = audioBookHandler.getChapterDetails()
 
         if len(chapters) < 1:
-            url = self._build_url({'mode': 'play', 'filename': fullpath, 'startTime': 0, 'chapter': 0})
+            url = self._build_url({'mode': 'play', 'filename': audioBookHandler.getFile(True), 'startTime': 0, 'chapter': 0})
 
             li = xbmcgui.ListItem(__addon__.getLocalizedString(32018), iconImage=defaultImage)
             li.setProperty("Fanart_Image", __fanart__)
@@ -168,7 +172,7 @@ class MenuNavigator():
 
         secondsIn, chapterPosition = audioBookHandler.getPosition()
         if (secondsIn > 0) or (chapterPosition > 1):
-            url = self._build_url({'mode': 'play', 'filename': fullpath, 'startTime': secondsIn, 'chapter': chapterPosition})
+            url = self._build_url({'mode': 'play', 'filename': audioBookHandler.getFile(True), 'startTime': secondsIn, 'chapter': chapterPosition})
 
             displayTime = self._getDisplayTimeFromSeconds(secondsIn)
             displayName = "%s %s" % (__addon__.getLocalizedString(32019), displayTime)
@@ -185,7 +189,7 @@ class MenuNavigator():
         chapterNum = 0
         for chapter in chapters:
             chapterNum += 1
-            url = self._build_url({'mode': 'play', 'filename': fullpath, 'startTime': audioBookHandler.getChapterStart(chapterNum), 'chapter': chapterNum})
+            url = self._build_url({'mode': 'play', 'filename': audioBookHandler.getFile(True), 'startTime': audioBookHandler.getChapterStart(chapterNum), 'chapter': chapterNum})
 
             # Check if the current position means that this chapter has already been played
             displayString = chapter['title']
@@ -194,7 +198,6 @@ class MenuNavigator():
             if Settings.autoNumberChapters() and (len(displayString) > 0):
                 # Check to make sure that the display chapter does not already
                 # start with a number, or end with a number
-                log("*** ROB ***: title: %s, first: %s (%s), last %s (%s)" % (chapter['title'], displayString[0], str(displayString[0].isdigit()), displayString[-1], str(displayString[-1].isdigit())))
                 if not (displayString[0].isdigit() or displayString[-1].isdigit()):
                     displayString = "%d. %s" % (chapterNum, displayString)
 
@@ -240,7 +243,7 @@ class MenuNavigator():
         # Play from resume point
         secondsIn, chapterPosition = bookHandle.getPosition()
         if (secondsIn > 0) or (chapterPosition > 1):
-            cmd = self._build_url({'mode': 'play', 'filename': bookHandle.getFile(), 'startTime': secondsIn, 'chapter': chapterPosition})
+            cmd = self._build_url({'mode': 'play', 'filename': bookHandle.getFile(True), 'startTime': secondsIn, 'chapter': chapterPosition})
             displayTime = self._getDisplayTimeFromSeconds(secondsIn)
             displayName = "%s %s" % (__addon__.getLocalizedString(32019), displayTime)
 
@@ -250,17 +253,17 @@ class MenuNavigator():
             ctxtMenu.append((displayName, 'RunPlugin(%s)' % cmd))
 
         # Play from start
-        cmd = self._build_url({'mode': 'play', 'filename': bookHandle.getFile(), 'startTime': 0, 'chapter': 0})
+        cmd = self._build_url({'mode': 'play', 'filename': bookHandle.getFile(True), 'startTime': 0, 'chapter': 0})
         ctxtMenu.append((__addon__.getLocalizedString(32018), 'RunPlugin(%s)' % cmd))
 
         # If this item is not already complete, allow it to be marked as complete
         if not bookHandle.isCompleted():
             # Mark as complete
-            cmd = self._build_url({'mode': 'progress', 'filename': bookHandle.getFile(), 'isComplete': 1, 'startTime': 0})
+            cmd = self._build_url({'mode': 'progress', 'filename': bookHandle.getFile(True), 'isComplete': 1, 'startTime': 0})
             ctxtMenu.append((__addon__.getLocalizedString(32010), 'RunPlugin(%s)' % cmd))
 
         # Clear History
-        cmd = self._build_url({'mode': 'clear', 'filename': bookHandle.getFile()})
+        cmd = self._build_url({'mode': 'clear', 'filename': bookHandle.getFile(True)})
         ctxtMenu.append((__addon__.getLocalizedString(32011), 'RunPlugin(%s)' % cmd))
 
         return ctxtMenu
