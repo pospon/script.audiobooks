@@ -239,6 +239,7 @@ class AudioBookHandler():
             log("AudioBookHandler: ffmpeg not enabled")
             return None
 
+        log("AudioBookHandler: ffmpeg location %s" % ffmpeg)
         log("AudioBookHandler: Running ffmpeg for %s" % inputFileName)
 
         # FFmpeg will not recognise paths that start with smb:// or nfs://
