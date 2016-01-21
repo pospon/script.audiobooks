@@ -311,6 +311,12 @@ class AudioBookHandler():
             # Make the ffmpeg call
             try:
                 info = subprocess.check_output(ffmpegCmd, shell=False, startupinfo=startupinfo, stderr=subprocess.STDOUT)
+            except subprocess.CalledProcessError as error:
+                # This exception will be thrown if ffmpeg prints to STDERR, which it will do if
+                # you try and run the command without an output (i.e. image file), but in most
+                # cases it does actually have the information we need
+                log("AudioBookHandler: CalledProcessError received, processing remaining output")
+                info = error.output
             except:
                 # Unfortunately there are still systems that use Python 2.6 which does not
                 # have check_output, so it that fails, we just use Popen
@@ -319,13 +325,6 @@ class AudioBookHandler():
                 for outStr in proc.communicate():
                     if outStr not in [None, ""]:
                         info = "%s%s\n" % (info, outStr)
-
-        except subprocess.CalledProcessError as error:
-            # This exception will be thrown if ffmpeg prints to STDERR, which it will do if
-            # you try and run the command without an output (i.e. image file), but in most
-            # cases it does actually have the information we need
-            log("AudioBookHandler: CalledProcessError received, processing remaining output")
-            info = error.output
         except:
             log("AudioBookHandler: Failed to get data using ffmpeg for file %s with error %s" % (self.filePath, traceback.format_exc()), xbmc.LOGERROR)
 
