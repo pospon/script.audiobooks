@@ -537,6 +537,7 @@ class FolderHandler(AudioBookHandler):
     def _loadSpecificDetails(self, includeCover=True):
         # List all the files in the directory, as that will be the chapters
         dirs, files = xbmcvfs.listdir(self.filePath)
+        files.sort()
 
         # Check if the cover image is required
         coverTargetName = None
